@@ -1,6 +1,8 @@
 package com.ellep.runningcompanion;
 
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -92,10 +94,32 @@ public class MainActivity extends AppCompatActivity {
         });
 
         binding.stop.setOnClickListener(v -> {
+            confirmStop();
+        });
+    }
+
+    private void confirmStop() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+        builder.setMessage("Tem certeza que deseja parar?");
+
+        // Add the buttons
+        builder.setPositiveButton("Sim", (dialog, id) -> {
+            // User clicked OK button
+            dialog.dismiss();
             stopRun();
             binding.start.setEnabled(true);
             binding.stop.setEnabled(false);
         });
+
+        builder.setNegativeButton("Cancelar", (dialog, id) -> {
+            // User cancelled the dialog
+            dialog.cancel();
+        });
+
+        // Create the AlertDialog
+        AlertDialog dialog = builder.create();
+        dialog.show();
     }
 
     private void initializeTTSUI() {
