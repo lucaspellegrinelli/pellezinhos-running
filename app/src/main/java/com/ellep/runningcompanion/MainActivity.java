@@ -1,5 +1,7 @@
 package com.ellep.runningcompanion;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
@@ -8,12 +10,21 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
+import android.widget.ArrayAdapter;
 import android.widget.SeekBar;
 
 import com.ellep.runningcompanion.databinding.ActivityMainBinding;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
@@ -30,7 +41,7 @@ public class MainActivity extends AppCompatActivity {
     private int ttsTime = 60;
     private boolean ttsEnabled = true;
 
-    private boolean initialStartupDone = false;
+    private boolean areListenersInstalled = false;
 
     private RunnerLocationManager runnerManager = new RunnerLocationManager(LOCATION_PERMISSION_REQUEST_CODE, Arrays.asList(
             LocationManager.GPS_PROVIDER,
@@ -63,6 +74,9 @@ public class MainActivity extends AppCompatActivity {
         // Initialize the UI
         initializeButtonsUI();
         initializeTTSUI();
+        updateHistory();
+
+        areListenersInstalled = false;
     }
 
     private void initializeButtonsUI() {
@@ -72,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
 
         binding.start.setOnClickListener(v -> {
             startRun();
+            updateUI();
             binding.start.setEnabled(false);
             binding.stop.setEnabled(true);
         });
@@ -143,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
             currentPacing = Math.min(currentPacing, 50);
 
             binding.distance.setText(String.format("%.2f km", distanceTraveled));
-            binding.time.setText(formatTime(timeElapsed));
+            binding.time.setText(Utils.formatTime(timeElapsed));
             binding.pacing.setText(String.format("%.2f min/km", overallPacing));
             binding.currentPacing.setText(String.format("%.2f min/km", currentPacing));
         }
@@ -157,11 +172,15 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
-        // Register location listeners
-        runnerManager.registerLocationListeners(this, this);
+        if (!areListenersInstalled) {
+            // Register location listeners
+            runnerManager.registerLocationListeners(this, this);
 
-        // Start the update Runnable
-        handler.post(updateRunnable);
+            // Start the update Runnable
+            handler.post(updateRunnable);
+
+            areListenersInstalled = true;
+        }
     }
 
     @Override
@@ -169,10 +188,10 @@ public class MainActivity extends AppCompatActivity {
         super.onPause();
 
         // Unregister location listener
-        runnerManager.unregisterLocationListeners(this);
+//        runnerManager.unregisterLocationListeners(this);
 
         // Stop the update Runnable
-        handler.removeCallbacks(updateRunnable);
+//        handler.removeCallbacks(updateRunnable);
     }
 
     @Override
@@ -199,19 +218,55 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void stopRun() {
+        SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPref.edit();
+
+        try {
+            JSONObject historyObj = new JSONObject(sharedPref.getString("history", "{\"history\": []}"));
+            JSONArray history = historyObj.getJSONArray("history");
+
+            JSONObject data = new JSONObject();
+            data.put("when", startTime);
+            data.put("time", runnerManager.getElapsedTime(startTime));
+            data.put("distance", runnerManager.getDistanceTraveled(startTime));
+            data.put("pace", runnerManager.getOverallSpeed(startTime));
+
+            history.put(history.length(), data);
+            historyObj.put("history", history);
+
+            editor.putString("history", historyObj.toString());
+            editor.apply();
+        } catch(JSONException error) {
+            System.out.println(error);
+        } finally {
+            updateHistory();
+        }
+
         startTime = -1;
+    }
+
+    private void updateHistory() {
+        SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
+
+        try {
+            JSONObject historyObj = new JSONObject(sharedPref.getString("history", "{\"history\": []}"));
+            JSONArray history = historyObj.getJSONArray("history");
+
+            List<HistoryItem> items = new ArrayList<>();
+            for (int i = 0; i < history.length(); i++) {
+                items.add(new HistoryItem(history.getJSONObject(i)));
+            }
+
+            items.sort((historyItem, t1) -> (int) (t1.getWhen() - historyItem.getWhen()));
+
+            binding.historyList.setAdapter(new HistoryAdapter(this, items));
+        } catch(JSONException error) {
+            System.out.println(error);
+        }
     }
 
     private boolean runStarted() {
         return startTime >= 0;
-    }
-
-    private String formatTime(long seconds) {
-        long hours = seconds / 3600;
-        seconds -= hours * 3600;
-        long minutes = seconds / 60;
-        seconds -= minutes * 60;
-        return String.format("%d:%02d:%02d", hours, minutes, seconds);
     }
 
     private String numberToTTS(double number) {
