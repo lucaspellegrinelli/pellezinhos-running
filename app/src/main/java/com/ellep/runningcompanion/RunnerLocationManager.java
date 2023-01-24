@@ -1,5 +1,6 @@
 package com.ellep.runningcompanion;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -30,11 +31,17 @@ public class RunnerLocationManager {
 
     public void registerLocationListeners(Context context, Activity activity) {
         for (String provider : locationProviders) {
-            if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            boolean needsFineLocation = ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED;
+            boolean needsCoarseLocation = ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED;
+
+            if (needsFineLocation || needsCoarseLocation) {
                 // If the permission is not granted, request it from the user
                 ActivityCompat.requestPermissions(
                         activity,
-                        new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                        new String[]{
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION
+                        },
                         location_permission_request_code
                 );
 
