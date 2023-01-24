@@ -2,18 +2,16 @@ package com.ellep.runningcompanion;
 
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
-import android.widget.ArrayAdapter;
 import android.widget.SeekBar;
+import android.widget.Toast;
 
 import com.ellep.runningcompanion.databinding.ActivityMainBinding;
 
@@ -24,8 +22,6 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -44,10 +40,11 @@ public class MainActivity extends AppCompatActivity {
     private boolean ttsEnabled = true;
 
     private boolean areListenersInstalled = false;
+    private boolean isLoopInstalled = false;
 
-    private RunnerLocationManager runnerManager = new RunnerLocationManager(LOCATION_PERMISSION_REQUEST_CODE, Arrays.asList(
+    private final RunnerLocationManager runnerManager = new RunnerLocationManager(LOCATION_PERMISSION_REQUEST_CODE, Arrays.asList(
             LocationManager.GPS_PROVIDER,
-            LocationManager.NETWORK_PROVIDER,
+//            LocationManager.NETWORK_PROVIDER,
             LocationManager.FUSED_PROVIDER
     ));
 
@@ -79,6 +76,7 @@ public class MainActivity extends AppCompatActivity {
         updateHistory();
 
         areListenersInstalled = false;
+        isLoopInstalled = false;
     }
 
     private void initializeButtonsUI() {
@@ -199,11 +197,13 @@ public class MainActivity extends AppCompatActivity {
         if (!areListenersInstalled) {
             // Register location listeners
             runnerManager.registerLocationListeners(this, this);
+            areListenersInstalled = true;
+        }
 
+        if (!isLoopInstalled) {
             // Start the update Runnable
             handler.post(updateRunnable);
-
-            areListenersInstalled = true;
+            isLoopInstalled = true;
         }
     }
 
@@ -211,11 +211,15 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
 
-        // Unregister location listener
-//        runnerManager.unregisterLocationListeners(this);
+        if (!runStarted()) {
+            // Unregister location listener
+            runnerManager.unregisterLocationListeners(this);
+            areListenersInstalled = false;
 
-        // Stop the update Runnable
-//        handler.removeCallbacks(updateRunnable);
+            // Stop the update Runnable
+            handler.removeCallbacks(updateRunnable);
+            isLoopInstalled = false;
+        }
     }
 
     @Override
@@ -226,10 +230,13 @@ public class MainActivity extends AppCompatActivity {
             case LOCATION_PERMISSION_REQUEST_CODE: {
                 // If the request is cancelled, the result arrays are empty.
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // permission was granted, do your location-related task
-                    // you want to perform.
+                    if (!areListenersInstalled) {
+                        // Register location listeners
+                        runnerManager.registerLocationListeners(this, this);
+                        areListenersInstalled = true;
+                    }
                 } else {
-                    // permission denied
+                    Toast.makeText(this, "Brother, vc negou a permissão de localização para um app cujo único propósito é ver onde você ta?", Toast.LENGTH_LONG);
                 }
 
                 return;
@@ -242,6 +249,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void stopRun() {
+        storeHistory();
+        startTime = -1;
+    }
+
+    private void storeHistory() {
         SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
 
@@ -254,6 +266,7 @@ public class MainActivity extends AppCompatActivity {
             data.put("time", runnerManager.getElapsedTime(startTime));
             data.put("distance", runnerManager.getDistanceTraveled(startTime));
             data.put("pace", runnerManager.getOverallSpeed(startTime));
+            data.put("altimetry", runnerManager.getAltitudeDistance(startTime));
 
             history.put(history.length(), data);
             historyObj.put("history", history);
@@ -265,8 +278,6 @@ public class MainActivity extends AppCompatActivity {
         } finally {
             updateHistory();
         }
-
-        startTime = -1;
     }
 
     private void updateHistory() {

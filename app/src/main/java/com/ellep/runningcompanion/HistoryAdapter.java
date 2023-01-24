@@ -56,6 +56,9 @@ public class HistoryAdapter extends BaseAdapter {
         TextView when = vi.findViewById(R.id.when);
         when.setText(Utils.formatDateTime(this.items.get(i).getWhen()));
 
+        TextView altimetry = vi.findViewById(R.id.altimetry);
+        altimetry.setText(String.format("⇅ %.0f m", this.items.get(i).getAltimetry()));
+
         return vi;
     }
 }

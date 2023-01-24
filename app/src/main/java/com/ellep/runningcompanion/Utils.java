@@ -19,7 +19,7 @@ public class Utils {
                 LocalDateTime.ofInstant(Instant.ofEpochMilli(unixTime),
                         TimeZone.getDefault().toZoneId());
 
-        String pattern = "dd/MM/yyyy HH:mm";
+        String pattern = "dd/MM HH:mm";
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern);
         return triggerTime.format(formatter);
     }

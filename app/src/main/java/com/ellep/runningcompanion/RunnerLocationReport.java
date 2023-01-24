@@ -19,24 +19,12 @@ public class RunnerLocationReport {
         return location;
     }
 
-    public void setLocation(Location location) {
-        this.location = location;
-    }
-
     public String getSource() {
         return source;
     }
 
-    public void setSource(String source) {
-        this.source = source;
-    }
-
     public long getTime() {
         return time;
-    }
-
-    public void setTime(long time) {
-        this.time = time;
     }
 
     @NonNull

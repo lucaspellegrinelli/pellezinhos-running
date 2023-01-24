@@ -10,7 +10,6 @@ import android.location.LocationManager;
 import androidx.core.app.ActivityCompat;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,6 +37,8 @@ public class RunnerLocationManager {
                         new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
                         location_permission_request_code
                 );
+
+                return;
             }
 
             LocationManager locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
@@ -69,8 +70,17 @@ public class RunnerLocationManager {
             return 0;
         }
 
-        double meterPerSec = reports.get(reports.size() - 1).getLocation().getSpeed();
-        double secPerKm = 1000.0 / meterPerSec;
+        int startIndex = Math.max(0, reports.size() - 5);
+        List<RunnerLocationReport> lastReports = reports.subList(startIndex, reports.size());
+
+        double averageSpeed = 0;
+        for (RunnerLocationReport report : lastReports) {
+            averageSpeed += report.getLocation().getSpeed();
+        }
+
+        averageSpeed /= (double)lastReports.size();
+
+        double secPerKm = 1000.0 / averageSpeed;
         return secPerKm / 60.0;
     }
 
@@ -87,6 +97,21 @@ public class RunnerLocationManager {
         }
 
         return distanceTraveled / 1000.0;
+    }
+
+    public double getAltitudeDistance(long since) {
+        List<RunnerLocationReport> reports = getLocalizationOptimizedSequence(since);
+        double totalAltitude = 0;
+        Location lastLocation = null;
+        for (RunnerLocationReport report : reports) {
+            if (lastLocation != null) {
+                totalAltitude += Math.abs(lastLocation.getAltitude() - report.getLocation().getAltitude());
+            }
+
+            lastLocation = report.getLocation();
+        }
+
+        return totalAltitude;
     }
 
     public double getOverallSpeed(long since) {
@@ -111,16 +136,36 @@ public class RunnerLocationManager {
     }
 
     public double getLastLocationAccuracy() {
-        Location currentLocation = getCurrentLocation();
+        long currentTime = Calendar.getInstance().getTimeInMillis();
+        long fiveSecAgo = currentTime - 5000;
+
+        List<RunnerLocationReport> reports = getLocalizationOptimizedSequence(fiveSecAgo);
+        if (reports.size() == 0) {
+            return 0;
+        }
+
+        Location currentLocation = reports.get(reports.size() - 1).getLocation();
+
         if (currentLocation != null)
             return getCurrentLocation().getAccuracy();
+
         return 0;
     }
 
     public String getLastLocationSource() {
-        Location currentLocation = getCurrentLocation();
+        long currentTime = Calendar.getInstance().getTimeInMillis();
+        long fiveSecAgo = currentTime - 5000;
+
+        List<RunnerLocationReport> reports = getLocalizationOptimizedSequence(fiveSecAgo);
+        if (reports.size() == 0) {
+            return "unknown";
+        }
+
+        Location currentLocation = reports.get(reports.size() - 1).getLocation();
+
         if (currentLocation != null)
             return getCurrentLocation().getProvider();
+
         return "unknown";
     }
 
