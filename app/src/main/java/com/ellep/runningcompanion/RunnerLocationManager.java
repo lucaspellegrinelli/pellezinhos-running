@@ -1,6 +1,5 @@
 package com.ellep.runningcompanion;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -107,7 +106,7 @@ public class RunnerLocationManager {
     }
 
     public double getAltitudeDistance(long since) {
-        List<RunnerLocationReport> reports = getLocalizationOptimizedSequence(since);
+        List<RunnerLocationReport> reports = getAltitudeOptimizedSequence(since);
         double totalAltitude = 0;
         Location lastLocation = null;
         for (RunnerLocationReport report : reports) {
@@ -129,106 +128,102 @@ public class RunnerLocationManager {
         return timeDiffMin / distanceKm;
     }
 
-    public Location getCurrentLocation() {
-        List<RunnerLocationReport> reports = getLocalizationOptimizedSequence(0);
-        if (reports.size() > 0)
-            return reports.get(reports.size() - 1).getLocation();
-        return null;
-    }
-
     public long getElapsedTime(long since) {
         long currentTime = Calendar.getInstance().getTimeInMillis();
         long timeDiffMs = currentTime - since;
         return timeDiffMs / 1000;
     }
 
-    public double getLastLocationAccuracy() {
+    public RunnerLocationReport getLastLocationReport() {
         long currentTime = Calendar.getInstance().getTimeInMillis();
-        long fiveSecAgo = currentTime - 5000;
+        long fiveSecAgo = currentTime - 10000;
 
         List<RunnerLocationReport> reports = getLocalizationOptimizedSequence(fiveSecAgo);
         if (reports.size() == 0) {
-            return 0;
+            return null;
         }
 
         Location currentLocation = reports.get(reports.size() - 1).getLocation();
-
         if (currentLocation != null)
-            return getCurrentLocation().getAccuracy();
+            return reports.get(reports.size() - 1);
 
-        return 0;
+        return null;
     }
 
-    public String getLastLocationSource() {
+    public RunnerLocationReport getLastAltitudeReport() {
         long currentTime = Calendar.getInstance().getTimeInMillis();
-        long fiveSecAgo = currentTime - 5000;
+        long fiveSecAgo = currentTime - 10000;
 
-        List<RunnerLocationReport> reports = getLocalizationOptimizedSequence(fiveSecAgo);
+        List<RunnerLocationReport> reports = getAltitudeOptimizedSequence(fiveSecAgo);
         if (reports.size() == 0) {
-            return "unknown";
+            return null;
         }
 
         Location currentLocation = reports.get(reports.size() - 1).getLocation();
-
         if (currentLocation != null)
-            return getCurrentLocation().getProvider();
+            return reports.get(reports.size() - 1);
 
-        return "unknown";
+        return null;
     }
 
     public boolean locationServiceConnected() {
-        double lastAccuracy = getLastLocationAccuracy();
+        RunnerLocationReport lastLocationReport = getLastLocationReport();
+        if (lastLocationReport == null) {
+            return false;
+        }
+
+        double lastAccuracy = lastLocationReport.getLocation().getAccuracy();
         return lastAccuracy > 0 && lastAccuracy <= 5;
     }
 
     public List<RunnerLocationReport> getLocalizationOptimizedSequence(long since) {
-        HashMap<Long, List<RunnerLocationReport>> reportsPerSecond = new HashMap<>();
-
-        for (RunnerLocationReport report : locationReports) {
-            if (report.getLocation().hasAccuracy() && report.getTime() >= since) {
-                long second = Math.round(report.getTime() / 1000.0);
-                if (reportsPerSecond.containsKey(second)) {
-                    reportsPerSecond.get(second).add(report);
-                } else {
-                    List<RunnerLocationReport> listOfReports = new ArrayList<>();
-                    listOfReports.add(report);
-                    reportsPerSecond.put(second, listOfReports);
-                }
-            }
-        }
-
-        HashMap<Long, RunnerLocationReport> bestReportPerSecond = new HashMap<>();
-        for (Map.Entry<Long, List<RunnerLocationReport>> entry : reportsPerSecond.entrySet()) {
-            Long key = entry.getKey();
-            List<RunnerLocationReport> reports = entry.getValue();
-
-            RunnerLocationReport reportBestLocation = reports.get(0);
-            for (RunnerLocationReport report : reports) {
-                if (reportBestLocation.getLocation().getAccuracy() > report.getLocation().getAccuracy()) {
-                    reportBestLocation = report;
-                }
+        return getOptimizedSequence(since, new RunnerSequenceOptimize() {
+            @Override
+            public boolean isReportValid(RunnerLocationReport report) {
+                return report.getLocation().hasAccuracy();
             }
 
-            bestReportPerSecond.put(key, reportBestLocation);
-        }
-
-        List<Long> keyList = new ArrayList<>(bestReportPerSecond.keySet());
-        Collections.sort(keyList);
-
-        List<RunnerLocationReport> output = new ArrayList<>();
-        for (Long key : keyList) {
-            output.add(bestReportPerSecond.get(key));
-        }
-
-        return output;
+            @Override
+            public boolean isReportBetter(RunnerLocationReport best, RunnerLocationReport current) {
+                return best.getLocation().getAccuracy() > current.getLocation().getAccuracy();
+            }
+        });
     }
 
     public List<RunnerLocationReport> getSpeedOptimizedSequence(long since, boolean nonZeroSpeed) {
+        return getOptimizedSequence(since, new RunnerSequenceOptimize() {
+            @Override
+            public boolean isReportValid(RunnerLocationReport report) {
+                boolean speedAllowed = !nonZeroSpeed || report.getLocation().getSpeed() > 0;
+                return report.getLocation().hasSpeedAccuracy() && speedAllowed;
+            }
+
+            @Override
+            public boolean isReportBetter(RunnerLocationReport best, RunnerLocationReport current) {
+                return best.getLocation().getSpeedAccuracyMetersPerSecond() > current.getLocation().getSpeedAccuracyMetersPerSecond();
+            }
+        });
+    }
+
+    public List<RunnerLocationReport> getAltitudeOptimizedSequence(long since) {
+        return getOptimizedSequence(since, new RunnerSequenceOptimize() {
+            @Override
+            public boolean isReportValid(RunnerLocationReport report) {
+                return report.getLocation().hasVerticalAccuracy() && report.getSource() == "fused";
+            }
+
+            @Override
+            public boolean isReportBetter(RunnerLocationReport best, RunnerLocationReport current) {
+                return best.getLocation().getVerticalAccuracyMeters() > current.getLocation().getVerticalAccuracyMeters();
+            }
+        });
+    }
+
+    public List<RunnerLocationReport> getOptimizedSequence(long since, RunnerSequenceOptimize optimize) {
         HashMap<Long, List<RunnerLocationReport>> reportsPerSecond = new HashMap<>();
 
         for (RunnerLocationReport report : locationReports) {
-            boolean speedAllowed = !nonZeroSpeed || report.getLocation().getSpeed() > 0;
-            if (report.getLocation().hasSpeedAccuracy() && report.getTime() >= since && speedAllowed) {
+            if (optimize.isReportValid(report) && report.getTime() >= since) {
                 long second = Math.round(report.getTime() / 1000.0);
                 if (reportsPerSecond.containsKey(second)) {
                     reportsPerSecond.get(second).add(report);
@@ -245,14 +240,14 @@ public class RunnerLocationManager {
             Long key = entry.getKey();
             List<RunnerLocationReport> reports = entry.getValue();
 
-            RunnerLocationReport reportBestLocation = reports.get(0);
+            RunnerLocationReport bestReport = reports.get(0);
             for (RunnerLocationReport report : reports) {
-                if (reportBestLocation.getLocation().getSpeedAccuracyMetersPerSecond() > report.getLocation().getSpeedAccuracyMetersPerSecond()) {
-                    reportBestLocation = report;
+                if (optimize.isReportBetter(bestReport, report)) {
+                    bestReport = report;
                 }
             }
 
-            bestReportPerSecond.put(key, reportBestLocation);
+            bestReportPerSecond.put(key, bestReport);
         }
 
         List<Long> keyList = new ArrayList<>(bestReportPerSecond.keySet());

@@ -31,7 +31,7 @@
             android:textAlignment="textEnd" />
 
         <TextView
-            android:id="@+id/gpsSource"
+            android:id="@+id/altitudeStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="40dp"

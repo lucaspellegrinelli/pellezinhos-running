@@ -164,11 +164,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateUI() {
-        double locationAccuracy = runnerManager.getLastLocationAccuracy();
-        String locationProvider = runnerManager.getLastLocationSource();
+        RunnerLocationReport lastLocation = runnerManager.getLastLocationReport();
+        RunnerLocationReport lastAltitude = runnerManager.getLastAltitudeReport();
 
-        binding.gpsStatus.setText(String.format("Acurácia do GPS: %.2f metros", locationAccuracy));
-        binding.gpsSource.setText(String.format("Origem do GPS: %s", locationProvider));
+        double locationAccuracy = lastLocation != null ? lastLocation.getLocation().getAccuracy() : 0;
+        String locationProvider = lastLocation != null ? lastLocation.getSource() : "unknown";
+        double altitudeAccuracy = lastAltitude != null ? lastAltitude.getLocation().getVerticalAccuracyMeters() : 0;
+        String altitudeProvider = lastAltitude != null ? lastAltitude.getSource() : "unknown";
+
+        binding.gpsStatus.setText(String.format("Acurácia do GPS: %.2f metros (%s)", locationAccuracy, locationProvider));
+        binding.altitudeStatus.setText(String.format("Acurácia do altímetro: %.2f metros (%s)", altitudeAccuracy, altitudeProvider));
 
         if (runStarted()) {
             double currentPacing = runnerManager.getCurrentSpeed();
