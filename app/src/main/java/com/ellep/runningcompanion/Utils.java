@@ -6,6 +6,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.TimeZone;
 
 public class Utils {
+    public static double fracMinuteToTime(double fracMinutes) {
+        int intPart = (int)fracMinutes;
+        double fracPart = fracMinutes - (double)intPart;
+        return intPart + fracPart * 0.6;
+    }
+
     public static String formatTime(long seconds) {
         long hours = seconds / 3600;
         seconds -= hours * 3600;

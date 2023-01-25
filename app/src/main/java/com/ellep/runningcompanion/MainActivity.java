@@ -1,6 +1,5 @@
 package com.ellep.runningcompanion;
 
-import android.Manifest;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -9,17 +8,14 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
-import android.location.LocationManager;
 import android.os.Bundle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.core.app.NotificationCompat;
 
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
 import android.widget.SeekBar;
-import android.widget.Toast;
 
 import com.ellep.runningcompanion.databinding.ActivityMainBinding;
 
@@ -28,13 +24,15 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
+
+    private final int UI_UPDATE_TIME_MS = 1000;
+    private final double GPS_MIN_ACCURACY = 5.0;
 
     private ActivityMainBinding binding;
 
@@ -58,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
             String source = intent.getStringExtra("source");
             long currentTime = Calendar.getInstance().getTimeInMillis();
 
-            if (location.hasAccuracy() && location.getAccuracy() <= 10) {
+            if (location.hasAccuracy() && location.getAccuracy() <= GPS_MIN_ACCURACY) {
                 runnerManager.addLocationReport(new RunnerLocationReport(source, currentTime, location));
             }
         }
@@ -143,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 updateUI();
                 speakUpdates();
-                handler.postDelayed(this, 1000);
+                handler.postDelayed(this, UI_UPDATE_TIME_MS);
             }
         };
         handler.post(updateRunnable);
@@ -164,7 +162,13 @@ public class MainActivity extends AppCompatActivity {
             return;
 
         stopService(new Intent(this, LocationService.class));
-        unregisterReceiver(locationReceiver);
+
+        try {
+            unregisterReceiver(locationReceiver);
+        } catch(RuntimeException error) {
+            Log.d("MainActivity", error.getMessage());
+        }
+
         handler.removeCallbacks(updateRunnable);
     }
 
@@ -193,8 +197,8 @@ public class MainActivity extends AppCompatActivity {
         // Add the buttons
         builder.setPositiveButton("Sim", (dialog, id) -> {
             // User clicked OK button
-            dialog.dismiss();
             stopRun();
+            dialog.dismiss();
             binding.start.setEnabled(true);
             binding.stop.setEnabled(false);
         });
@@ -270,9 +274,6 @@ public class MainActivity extends AppCompatActivity {
             double distanceTraveled = runnerManager.getDistanceTraveled(startTime);
             long timeElapsed = runnerManager.getElapsedTime(startTime);
 
-            overallPacing = Math.min(overallPacing, 50);
-            currentPacing = Math.min(currentPacing, 50);
-
             binding.distance.setText(String.format("%.2f km", distanceTraveled));
             binding.time.setText(Utils.formatTime(timeElapsed));
             binding.pacing.setText(String.format("%.2f min/km", overallPacing));
@@ -300,11 +301,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void stopRun() {
-        storeHistory();
+        long tempStartTime = startTime;
         startTime = -1;
+        storeHistory(tempStartTime);
     }
 
-    private void storeHistory() {
+    private void storeHistory(long fromTime) {
         SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
 
@@ -313,11 +315,11 @@ public class MainActivity extends AppCompatActivity {
             JSONArray history = historyObj.getJSONArray("history");
 
             JSONObject data = new JSONObject();
-            data.put("when", startTime);
-            data.put("time", runnerManager.getElapsedTime(startTime));
-            data.put("distance", runnerManager.getDistanceTraveled(startTime));
-            data.put("pace", runnerManager.getOverallSpeed(startTime));
-            data.put("altimetry", runnerManager.getAltitudeDistance(startTime));
+            data.put("when", fromTime);
+            data.put("time", runnerManager.getElapsedTime(fromTime));
+            data.put("distance", runnerManager.getDistanceTraveled(fromTime));
+            data.put("pace", runnerManager.getOverallSpeed(fromTime));
+            data.put("altimetry", runnerManager.getAltitudeDistance(fromTime));
 
             history.put(history.length(), data);
             historyObj.put("history", history);
