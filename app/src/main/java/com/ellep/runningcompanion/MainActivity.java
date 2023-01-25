@@ -1,15 +1,23 @@
 package com.ellep.runningcompanion;
 
+import android.Manifest;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
 
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
+import android.util.Log;
 import android.widget.SeekBar;
 import android.widget.Toast;
 
@@ -39,26 +47,94 @@ public class MainActivity extends AppCompatActivity {
     private int ttsTime = 60;
     private boolean ttsEnabled = true;
 
-    private boolean areListenersInstalled = false;
-    private boolean isLoopInstalled = false;
-
-    private final RunnerLocationManager runnerManager = new RunnerLocationManager(LOCATION_PERMISSION_REQUEST_CODE, Arrays.asList(
-            LocationManager.GPS_PROVIDER,
-//            LocationManager.NETWORK_PROVIDER,
-            LocationManager.FUSED_PROVIDER
+    private final RunnerLocationManager runnerManager = new RunnerLocationManager(Arrays.asList(
+            LocationManager.GPS_PROVIDER
     ));
+
+    private BroadcastReceiver locationReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Location location = intent.getParcelableExtra("location");
+            long currentTime = Calendar.getInstance().getTimeInMillis();
+            Log.d("MainActivity", "Recived location");
+            runnerManager.addLocationReport(new RunnerLocationReport("service", currentTime, location));
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Inflates the layout
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+
+        // Initialize the UI
+        initializeButtonsUI();
+        initializeTTSUI();
+        updateHistory();
+
+        // Asks the user for permissions
+        checkPermissions();
 
         // Initializes Text to Speech
         textToSpeech = new TextToSpeech(getApplicationContext(), status -> {});
         textToSpeech.setLanguage(Locale.US);
+    }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if(checkPermissions()) {
+            setupServices();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        if (!runStarted()) {
+            destroyServices();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        destroyServices();
+    }
+
+    private boolean checkPermissions() {
+        boolean needsFineLocation = ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED;
+        boolean needsCoarseLocation = ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED;
+        boolean needsForeground = ActivityCompat.checkSelfPermission(this, Manifest.permission.FOREGROUND_SERVICE) != PackageManager.PERMISSION_GRANTED;
+
+        if (needsFineLocation || needsCoarseLocation || needsForeground) {
+            // If the permission is not granted, request it from the user
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{
+                            android.Manifest.permission.ACCESS_FINE_LOCATION,
+                            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                            android.Manifest.permission.FOREGROUND_SERVICE
+                    },
+                    LOCATION_PERMISSION_REQUEST_CODE
+            );
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private void setupServices() {
         // Initialize the main loop
         handler = new Handler();
         updateRunnable = new Runnable() {
@@ -69,14 +145,25 @@ public class MainActivity extends AppCompatActivity {
                 handler.postDelayed(this, 1000);
             }
         };
+        handler.post(updateRunnable);
 
-        // Initialize the UI
-        initializeButtonsUI();
-        initializeTTSUI();
-        updateHistory();
+        // Registers location listeners
+        runnerManager.registerLocationListeners(this);
 
-        areListenersInstalled = false;
-        isLoopInstalled = false;
+        // Starts location service
+        Intent intent = new Intent(this, LocationService.class);
+        startForegroundService(intent);
+
+        // Register location service
+        IntentFilter filter = new IntentFilter("location_update");
+        registerReceiver(locationReceiver, filter);
+    }
+
+    private void destroyServices() {
+        runnerManager.unregisterLocationListeners(this);
+        stopService(new Intent(this, LocationService.class));
+        unregisterReceiver(locationReceiver);
+        handler.removeCallbacks(updateRunnable);
     }
 
     private void initializeButtonsUI() {
@@ -196,61 +283,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-
-        if (!areListenersInstalled) {
-            // Register location listeners
-            runnerManager.registerLocationListeners(this, this);
-            areListenersInstalled = true;
-        }
-
-        if (!isLoopInstalled) {
-            // Start the update Runnable
-            handler.post(updateRunnable);
-            isLoopInstalled = true;
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-
-        if (!runStarted()) {
-            // Unregister location listener
-            runnerManager.unregisterLocationListeners(this);
-            areListenersInstalled = false;
-
-            // Stop the update Runnable
-            handler.removeCallbacks(updateRunnable);
-            isLoopInstalled = false;
-        }
-    }
-
-    @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-        switch (requestCode) {
-            case LOCATION_PERMISSION_REQUEST_CODE: {
-                // If the request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    if (!areListenersInstalled) {
-                        // Register location listeners
-                        runnerManager.registerLocationListeners(this, this);
-                        areListenersInstalled = true;
-                    }
-                } else {
-                    Toast.makeText(this, "Brother, vc negou a permissão de localização para um app cujo único propósito é ver onde você ta?", Toast.LENGTH_LONG);
-                }
-
-                return;
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                setupServices();
+            } else {
+                Toast.makeText(this, "Brother, vc negou a permissão de localização para um app cujo único propósito é ver onde você ta?", Toast.LENGTH_LONG).show();
             }
         }
     }
 
     private void startRun() {
-        startTime = Calendar.getInstance().getTimeInMillis();;
+        startTime = Calendar.getInstance().getTimeInMillis();
     }
 
     private void stopRun() {

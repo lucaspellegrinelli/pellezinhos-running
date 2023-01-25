@@ -23,4 +23,14 @@ public class Utils {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern);
         return triggerTime.format(formatter);
     }
+
+    public static String formatDateTimeSeconds(long unixTime) {
+        LocalDateTime triggerTime =
+                LocalDateTime.ofInstant(Instant.ofEpochMilli(unixTime),
+                        TimeZone.getDefault().toZoneId());
+
+        String pattern = "HH:mm:ss";
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern);
+        return triggerTime.format(formatter);
+    }
 }

@@ -1,6 +1,6 @@
 package com.ellep.runningcompanion;
 
-import android.app.Activity;
+import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -17,36 +17,27 @@ import java.util.List;
 import java.util.Map;
 
 public class RunnerLocationManager {
-    private int location_permission_request_code;
     private List<String> locationProviders;
-    private List<LocationListener> locationListeners =  new ArrayList<>();
+    private List<LocationListener> locationListeners = new ArrayList<>();
 
     private List<RunnerLocationReport> locationReports = new ArrayList<>();
 
-    public RunnerLocationManager(int location_permission_request_code, List<String> locationProviders) {
+    public RunnerLocationManager(List<String> locationProviders) {
         this.locationProviders = locationProviders;
-        this.location_permission_request_code = location_permission_request_code;
     }
 
-    public void registerLocationListeners(Context context, Activity activity) {
+    public RunnerLocationManager() {
+        this.locationProviders = new ArrayList<>();
+    }
+
+    public void registerLocationListeners(Context context) {
+        boolean hasFineLocation = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        boolean hasCoarseLocation = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (!hasFineLocation && !hasCoarseLocation) {
+            return;
+        }
+
         for (String provider : locationProviders) {
-            boolean needsFineLocation = ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED;
-            boolean needsCoarseLocation = ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED;
-
-            if (needsFineLocation || needsCoarseLocation) {
-                // If the permission is not granted, request it from the user
-                ActivityCompat.requestPermissions(
-                        activity,
-                        new String[]{
-                                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                                android.Manifest.permission.ACCESS_COARSE_LOCATION
-                        },
-                        location_permission_request_code
-                );
-
-                return;
-            }
-
             LocationManager locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
             LocationListener locationListener = location -> {
                 long currentTime = Calendar.getInstance().getTimeInMillis();
@@ -209,7 +200,7 @@ public class RunnerLocationManager {
         return getOptimizedSequence(since, new RunnerSequenceOptimize() {
             @Override
             public boolean isReportValid(RunnerLocationReport report) {
-                return report.getLocation().hasVerticalAccuracy() && report.getSource() == "fused";
+                return report.getLocation().hasVerticalAccuracy() && report.getLocation().getVerticalAccuracyMeters() <= 2;
             }
 
             @Override
