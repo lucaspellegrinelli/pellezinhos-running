@@ -49,19 +49,17 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean servicesRegistered = false;
 
-    private final RunnerLocationManager runnerManager = new RunnerLocationManager(Arrays.asList(
-            LocationManager.GPS_PROVIDER
-    ));
+    private final RunnerLocationManager runnerManager = new RunnerLocationManager();
 
     private BroadcastReceiver locationReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             Location location = intent.getParcelableExtra("location");
+            String source = intent.getStringExtra("source");
             long currentTime = Calendar.getInstance().getTimeInMillis();
-            Log.d("MainActivity", "Recived location");
 
             if (location.hasAccuracy() && location.getAccuracy() <= 10) {
-                runnerManager.addLocationReport(new RunnerLocationReport("service", currentTime, location));
+                runnerManager.addLocationReport(new RunnerLocationReport(source, currentTime, location));
             }
         }
     };
@@ -150,9 +148,6 @@ public class MainActivity extends AppCompatActivity {
         };
         handler.post(updateRunnable);
 
-        // Registers location listeners
-        runnerManager.registerLocationListeners(this);
-
         // Starts location service
         Intent intent = new Intent(this, LocationService.class);
         startForegroundService(intent);
@@ -168,7 +163,6 @@ public class MainActivity extends AppCompatActivity {
         if (!servicesRegistered)
             return;
 
-        runnerManager.unregisterLocationListeners(this);
         stopService(new Intent(this, LocationService.class));
         unregisterReceiver(locationReceiver);
         handler.removeCallbacks(updateRunnable);
@@ -297,8 +291,6 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 setupServices();
-            } else {
-                Toast.makeText(this, "Brother, vc negou a permissão de localização para um app cujo único propósito é ver onde você ta?", Toast.LENGTH_LONG).show();
             }
         }
     }

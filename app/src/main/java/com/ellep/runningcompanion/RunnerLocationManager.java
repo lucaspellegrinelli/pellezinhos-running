@@ -1,13 +1,6 @@
 package com.ellep.runningcompanion;
 
-import android.Manifest;
-import android.content.Context;
-import android.content.pm.PackageManager;
 import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
-
-import androidx.core.app.ActivityCompat;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -17,45 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 public class RunnerLocationManager {
-    private List<String> locationProviders;
-    private List<LocationListener> locationListeners = new ArrayList<>();
-
     private List<RunnerLocationReport> locationReports = new ArrayList<>();
-
-    public RunnerLocationManager(List<String> locationProviders) {
-        this.locationProviders = locationProviders;
-    }
-
-    public RunnerLocationManager() {
-        this.locationProviders = new ArrayList<>();
-    }
-
-    public void registerLocationListeners(Context context) {
-        boolean hasFineLocation = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-        boolean hasCoarseLocation = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-        if (!hasFineLocation && !hasCoarseLocation) {
-            return;
-        }
-
-        for (String provider : locationProviders) {
-            LocationManager locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
-            LocationListener locationListener = location -> {
-                long currentTime = Calendar.getInstance().getTimeInMillis();
-                RunnerLocationReport report = new RunnerLocationReport(provider, currentTime, location);
-                addLocationReport(report);
-            };
-
-            locationManager.requestLocationUpdates(provider, 0, 0, locationListener);
-            locationListeners.add(locationListener);
-        }
-    }
-
-    public void unregisterLocationListeners(Context context) {
-        for (LocationListener locationListener : locationListeners) {
-            LocationManager locationManager = (LocationManager) context.getSystemService(context.LOCATION_SERVICE);
-            locationManager.removeUpdates(locationListener);
-        }
-    }
 
     public void addLocationReport(RunnerLocationReport report) {
         locationReports.add(report);

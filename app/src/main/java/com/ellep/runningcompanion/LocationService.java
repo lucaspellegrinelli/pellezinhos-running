@@ -6,7 +6,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
-import android.os.Build;
+import android.location.LocationManager;
 import android.os.IBinder;
 import android.util.Log;
 
@@ -23,7 +23,7 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 
-import java.util.Calendar;
+import java.util.Arrays;
 
 public class LocationService extends Service {
     private static final String CHANNEL_ID = "location_service_channel";
@@ -33,6 +33,11 @@ public class LocationService extends Service {
     private FusedLocationProviderClient fusedLocationClient;
     private LocationCallback locationCallback;
     private LocationRequest locationRequest;
+
+    private final OtherLocationProviderManager otherLocationProviderManager = new OtherLocationProviderManager(Arrays.asList(
+            LocationManager.GPS_PROVIDER,
+            LocationManager.FUSED_PROVIDER
+    ));
 
     public LocationService() {
 
@@ -57,19 +62,14 @@ public class LocationService extends Service {
         // Create a new FusedLocationProviderClient
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Create a new LocationCallback
+        // Handle new locations
+        otherLocationProviderManager.registerLocationListeners(this, this::sendLocationBroadcast);
         locationCallback = new LocationCallback() {
             @Override
             public void onLocationResult(LocationResult locationResult) {
-                if (locationResult == null) {
-                    return;
+                if (locationResult != null) {
+                    sendLocationBroadcast(locationResult.getLastLocation(), "service");
                 }
-
-                long currentTime = Calendar.getInstance().getTimeInMillis();
-                sendLocationBroadcast(locationResult.getLastLocation());
-
-                String notificationMessage = buildNotificationMessage(locationResult.getLastLocation(), currentTime);
-                updateNotification(notificationMessage);
             }
         };
 
@@ -94,20 +94,17 @@ public class LocationService extends Service {
         return START_STICKY;
     }
 
-    private void sendLocationBroadcast(Location location) {
+    private void sendLocationBroadcast(Location location, String source) {
         Intent intent = new Intent("location_update");
         intent.putExtra("location", location);
+        intent.putExtra("source", source);
         sendBroadcast(intent);
-    }
-
-    private String buildNotificationMessage(Location location, long unixTime) {
-        return String.format("[%s] Acc: %.2f m (⇅ %.1f m)", Utils.formatDateTimeSeconds(unixTime), location.getAccuracy(), location.getVerticalAccuracyMeters());
     }
 
     private void createNotification() {
         Log.d("LocationService", "Creating notification");
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_background)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle(NOTIFICATION_TITLE)
                 .setContentText("...")
                 .setOnlyAlertOnce(true)
@@ -122,7 +119,7 @@ public class LocationService extends Service {
         }
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_background)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle(NOTIFICATION_TITLE)
                 .setContentText(content)
                 .setOnlyAlertOnce(true)
@@ -135,6 +132,7 @@ public class LocationService extends Service {
     public void onDestroy() {
         super.onDestroy();
         fusedLocationClient.removeLocationUpdates(locationCallback);
+        otherLocationProviderManager.unregisterLocationListeners(this);
         stopForeground(true);
         stopSelf();
     }
