@@ -47,6 +47,8 @@ public class MainActivity extends AppCompatActivity {
     private int ttsTime = 60;
     private boolean ttsEnabled = true;
 
+    private boolean servicesRegistered = false;
+
     private final RunnerLocationManager runnerManager = new RunnerLocationManager(Arrays.asList(
             LocationManager.GPS_PROVIDER
     ));
@@ -57,7 +59,10 @@ public class MainActivity extends AppCompatActivity {
             Location location = intent.getParcelableExtra("location");
             long currentTime = Calendar.getInstance().getTimeInMillis();
             Log.d("MainActivity", "Recived location");
-            runnerManager.addLocationReport(new RunnerLocationReport("service", currentTime, location));
+
+            if (location.hasAccuracy() && location.getAccuracy() <= 10) {
+                runnerManager.addLocationReport(new RunnerLocationReport("service", currentTime, location));
+            }
         }
     };
 
@@ -114,16 +119,14 @@ public class MainActivity extends AppCompatActivity {
     private boolean checkPermissions() {
         boolean needsFineLocation = ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED;
         boolean needsCoarseLocation = ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED;
-        boolean needsForeground = ActivityCompat.checkSelfPermission(this, Manifest.permission.FOREGROUND_SERVICE) != PackageManager.PERMISSION_GRANTED;
 
-        if (needsFineLocation || needsCoarseLocation || needsForeground) {
+        if (needsFineLocation || needsCoarseLocation) {
             // If the permission is not granted, request it from the user
             ActivityCompat.requestPermissions(
                     this,
                     new String[]{
                             android.Manifest.permission.ACCESS_FINE_LOCATION,
-                            android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                            android.Manifest.permission.FOREGROUND_SERVICE
+                            android.Manifest.permission.ACCESS_COARSE_LOCATION
                     },
                     LOCATION_PERMISSION_REQUEST_CODE
             );
@@ -157,9 +160,14 @@ public class MainActivity extends AppCompatActivity {
         // Register location service
         IntentFilter filter = new IntentFilter("location_update");
         registerReceiver(locationReceiver, filter);
+
+        servicesRegistered = true;
     }
 
     private void destroyServices() {
+        if (!servicesRegistered)
+            return;
+
         runnerManager.unregisterLocationListeners(this);
         stopService(new Intent(this, LocationService.class));
         unregisterReceiver(locationReceiver);

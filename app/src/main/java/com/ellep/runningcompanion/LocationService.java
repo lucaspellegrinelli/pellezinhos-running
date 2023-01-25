@@ -28,6 +28,7 @@ import java.util.Calendar;
 public class LocationService extends Service {
     private static final String CHANNEL_ID = "location_service_channel";
     private static final int NOTIFICATION_ID = 1;
+    private static final String NOTIFICATION_TITLE = "Pellezinho's Running";
 
     private FusedLocationProviderClient fusedLocationClient;
     private LocationCallback locationCallback;
@@ -66,12 +67,14 @@ public class LocationService extends Service {
 
                 long currentTime = Calendar.getInstance().getTimeInMillis();
                 sendLocationBroadcast(locationResult.getLastLocation());
-                updateNotification(currentTime);
+
+                String notificationMessage = buildNotificationMessage(locationResult.getLastLocation(), currentTime);
+                updateNotification(notificationMessage);
             }
         };
 
         // Create a new LocationRequest
-        locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2500)
+        locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
                 .setWaitForAccurateLocation(true)
                 .setGranularity(Granularity.GRANULARITY_FINE)
                 .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
@@ -97,28 +100,32 @@ public class LocationService extends Service {
         sendBroadcast(intent);
     }
 
+    private String buildNotificationMessage(Location location, long unixTime) {
+        return String.format("[%s] Acc: %.2f m (⇅ %.1f m)", Utils.formatDateTimeSeconds(unixTime), location.getAccuracy(), location.getVerticalAccuracyMeters());
+    }
+
     private void createNotification() {
         Log.d("LocationService", "Creating notification");
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_background)
-                .setContentTitle("Location Service")
-                .setContentText("Last update: Never")
-                .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-                .setPriority(NotificationCompat.PRIORITY_MIN);
+                .setContentTitle(NOTIFICATION_TITLE)
+                .setContentText("...")
+                .setOnlyAlertOnce(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT);
 
         startForeground(NOTIFICATION_ID, builder.build());
     }
 
-    private void updateNotification(long updateTime) {
+    private void updateNotification(String content) {
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_background)
-                .setContentTitle("Location Service")
-                .setContentText("Last update: " + Utils.formatDateTimeSeconds(updateTime))
-                .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+                .setContentTitle(NOTIFICATION_TITLE)
+                .setContentText(content)
+                .setOnlyAlertOnce(true)
                 .setPriority(NotificationCompat.PRIORITY_MIN);
 
         NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, builder.build());
