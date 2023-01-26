@@ -13,7 +13,6 @@ public class RunnerLocationManager {
     private final int CURRENT_SPEED_SECONDS = 15;
     private final int MS_PER_TIME_GROUP = 2500;
 
-    private final double SIMILAR_ACCURACY_THRESHOLD = 0.5;
     private final int MS_WAIT_TIME_BEFORE_DISCONNECT = 10000;
 
     private List<RunnerLocationReport> locationReports = new ArrayList<>();
@@ -137,7 +136,7 @@ public class RunnerLocationManager {
         return getOptimizedSequence(since, new RunnerSequenceOptimize() {
             @Override
             public boolean isReportValid(RunnerLocationReport report) {
-                return report.getLocation().hasVerticalAccuracy() && report.getLocation().getVerticalAccuracyMeters() <= 2;
+                return report.getLocation().hasVerticalAccuracy() && report.getLocation().getVerticalAccuracyMeters() <= 5;
             }
 
             @Override
@@ -152,7 +151,7 @@ public class RunnerLocationManager {
 
         for (RunnerLocationReport report : locationReports) {
             if (optimize.isReportValid(report) && report.getTime() >= since) {
-                long timeGroup = Math.round(report.getTime() / MS_PER_TIME_GROUP);
+                long timeGroup = Math.round((double)report.getTime() / MS_PER_TIME_GROUP);
                 if (reportsPerTimeGroup.containsKey(timeGroup)) {
                     reportsPerTimeGroup.get(timeGroup).add(report);
                 } else {
@@ -168,7 +167,7 @@ public class RunnerLocationManager {
             Long key = entry.getKey();
             List<RunnerLocationReport> reports = entry.getValue();
 
-            double averageTime = 0;
+            List<Long> times = new ArrayList<>();
             double averageLat = 0;
             double averageLon = 0;
             double averageAltitude = 0;
@@ -179,7 +178,7 @@ public class RunnerLocationManager {
             double weightSum = 0;
             for (RunnerLocationReport report : reports) {
                 double reportWeight = optimize.getReportWeight(report);
-                averageTime += report.getTime() * reportWeight;
+                times.add(report.getTime());
                 averageLat += report.getLocation().getLatitude() * reportWeight;
                 averageLon += report.getLocation().getLongitude() * reportWeight;
                 averageAltitude += report.getLocation().getAltitude() * reportWeight;
@@ -190,7 +189,6 @@ public class RunnerLocationManager {
                 weightSum += reportWeight;
             }
 
-            averageTime /= weightSum;
             averageLat /= weightSum;
             averageLon /= weightSum;
             averageAltitude /= weightSum;
@@ -199,7 +197,7 @@ public class RunnerLocationManager {
             averageAltitudeAccuracy /= weightSum;
             averageSpeedAccuracy /= weightSum;
 
-            Location averageLocation = reports.get(0).getLocation();
+            Location averageLocation = new Location("");
             averageLocation.reset();
             averageLocation.setLatitude(averageLat);
             averageLocation.setLongitude(averageLon);
@@ -209,6 +207,8 @@ public class RunnerLocationManager {
             averageLocation.setVerticalAccuracyMeters(averageAltitudeAccuracy);
             averageLocation.setSpeedAccuracyMetersPerSecond(averageSpeedAccuracy);
 
+            Collections.sort(times);
+            long averageTime = times.get(times.size() / 2);
             RunnerLocationReport avgReport = new RunnerLocationReport("average", (long) averageTime, averageLocation);
             reportPerTimeGroup.put(key, avgReport);
         }
