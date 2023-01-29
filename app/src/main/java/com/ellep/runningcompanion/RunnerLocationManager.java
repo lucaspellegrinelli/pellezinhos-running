@@ -10,20 +10,38 @@ import java.util.List;
 import java.util.Map;
 
 public class RunnerLocationManager {
-    private final int CURRENT_SPEED_SECONDS = 15;
     private final int MS_PER_TIME_GROUP = 2500;
 
     private final int MS_WAIT_TIME_BEFORE_DISCONNECT = 10000;
 
     private List<RunnerLocationReport> locationReports = new ArrayList<>();
 
+    private boolean useWeightSquared = false;
+    private int currentSpeedTimeBuffer = 60;
+
     public void addLocationReport(RunnerLocationReport report) {
         locationReports.add(report);
     }
 
+    public void setUseWeightSquared(boolean useWeightSquared) {
+        this.useWeightSquared = useWeightSquared;
+    }
+
+    public boolean isUseWeightSquared(){
+        return this.useWeightSquared;
+    }
+
+    public void setCurrentSpeedTimeBuffer(int currentSpeedTimeBuffer) {
+        this.currentSpeedTimeBuffer = currentSpeedTimeBuffer;
+    }
+
+    public int getCurrentSpeedTimeBuffer() {
+        return this.currentSpeedTimeBuffer;
+    }
+
     public double getCurrentSpeed() {
         long currentTime = Calendar.getInstance().getTimeInMillis();
-        double rawSpeed = getSpeedInInterval(currentTime - CURRENT_SPEED_SECONDS * 1000);
+        double rawSpeed = getSpeedInInterval(currentTime - currentSpeedTimeBuffer * 1000);
         double timeSpeed = Utils.fracMinuteToTime(rawSpeed);
         return Math.min(timeSpeed, 50);
     }
@@ -127,7 +145,11 @@ public class RunnerLocationManager {
 
             @Override
             public double getReportWeight(RunnerLocationReport report) {
-                return 1.0 / report.getLocation().getAccuracy();
+                if (useWeightSquared) {
+                    return Math.pow(1.0 / report.getLocation().getAccuracy(), 2);
+                } else{
+                    return 1.0 / report.getLocation().getAccuracy();
+                }
             }
         });
     }

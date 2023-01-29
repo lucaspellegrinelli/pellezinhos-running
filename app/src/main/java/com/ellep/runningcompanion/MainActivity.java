@@ -73,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
         // Initialize the UI
         initializeButtonsUI();
         initializeTTSUI();
+        initializeConfigUI();
         updateHistory();
 
         // Asks the user for permissions
@@ -189,6 +190,32 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void initializeConfigUI() {
+        // Handles seek bar
+        runnerManager.setCurrentSpeedTimeBuffer((binding.currentSpeedBuffer.getProgress() + 2) * 5);
+        binding.currentSpeedBufferView.setText(String.format("%d s", runnerManager.getCurrentSpeedTimeBuffer()));
+        binding.currentSpeedBuffer.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                runnerManager.setCurrentSpeedTimeBuffer((progress + 2) * 5);
+                binding.currentSpeedBufferView.setText(String.format("%d s", runnerManager.getCurrentSpeedTimeBuffer()));
+            }
+        });
+
+        runnerManager.setUseWeightSquared(binding.squaredWeightEnabled.isChecked());
+        binding.squaredWeightEnabled.setChecked(runnerManager.isUseWeightSquared());
+        binding.squaredWeightEnabled.setOnCheckedChangeListener((compoundButton, isChecked) -> {
+            runnerManager.setUseWeightSquared(isChecked);
+            updateUI();
+        });
+    }
+
     private void confirmStop() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
 
@@ -214,12 +241,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initializeTTSUI() {
-        // Gets tts values from the ui
-        ttsEnabled = binding.ttsEnabled.isChecked();
+        // Handles seek bar
         ttsTime = (binding.ttsTime.getProgress() + 1) * 60;
         binding.ttsTimeView.setText(String.format("%d s", ttsTime));
-
-        // Handles seek bar
         binding.ttsTime.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {}
@@ -235,6 +259,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Handles checkbox
+        ttsEnabled = binding.ttsEnabled.isChecked();
         binding.ttsEnabled.setOnCheckedChangeListener((buttonView, isChecked) -> {
             ttsEnabled = isChecked;
         });
