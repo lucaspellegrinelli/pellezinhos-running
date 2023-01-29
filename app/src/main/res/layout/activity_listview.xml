@@ -21,8 +21,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-black"
-                android:text="0 m"
-                android:textColor="@android:color/primary_text_dark" />
+                android:text="0 m" />
 
             <TextView
                 android:id="@+id/when"
@@ -47,7 +46,6 @@
                 android:fontFamily="sans-serif-black"
                 android:text="0,00 km"
                 android:textAlignment="center"
-                android:textColor="@android:color/primary_text_dark"
                 android:textSize="20sp" />
         </LinearLayout>
 
@@ -63,8 +61,7 @@
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-black"
                 android:text="0,00 min/km"
-                android:textAlignment="textEnd"
-                android:textColor="@android:color/primary_text_dark" />
+                android:textAlignment="textEnd" />
 
             <TextView
                 android:id="@+id/time"

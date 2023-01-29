@@ -163,14 +163,13 @@ public class MainActivity extends AppCompatActivity {
             return;
 
         stopService(new Intent(this, LocationService.class));
+        handler.removeCallbacks(updateRunnable);
 
         try {
             unregisterReceiver(locationReceiver);
         } catch(RuntimeException error) {
             Log.d("MainActivity", error.getMessage());
         }
-
-        handler.removeCallbacks(updateRunnable);
     }
 
     private void initializeButtonsUI() {
@@ -286,12 +285,11 @@ public class MainActivity extends AppCompatActivity {
         RunnerLocationReport lastAltitude = runnerManager.getLastAltitudeReport();
 
         double locationAccuracy = lastLocation != null ? lastLocation.getLocation().getAccuracy() : 0;
-        String locationProvider = lastLocation != null ? lastLocation.getSource() : "unknown";
+//        String locationProvider = lastLocation != null ? lastLocation.getSource() : "unknown";
         double altitudeAccuracy = lastAltitude != null ? lastAltitude.getLocation().getVerticalAccuracyMeters() : 0;
-        String altitudeProvider = lastAltitude != null ? lastAltitude.getSource() : "unknown";
+//        String altitudeProvider = lastAltitude != null ? lastAltitude.getSource() : "unknown";
 
-        binding.gpsStatus.setText(String.format("Acurácia do GPS: %.2f metros (%s)", locationAccuracy, locationProvider));
-        binding.altitudeStatus.setText(String.format("Acurácia do altímetro: %.2f metros (%s)", altitudeAccuracy, altitudeProvider));
+        binding.gpsStatus.setText(String.format("Acurácia do GPS: %.2f m (⇅ %.2f m)", locationAccuracy, altitudeAccuracy));
 
         if (runStarted()) {
             double currentPacing = runnerManager.getCurrentSpeed();
